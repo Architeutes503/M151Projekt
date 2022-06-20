@@ -6,35 +6,8 @@ from .models import Tutorial, TutorialCategory, TutorialSeries
 from django.contrib.auth.forms import AuthenticationForm
 from django.contrib.auth import authenticate, login, logout
 from django.contrib import messages
-from .forms import UserForm
+from .forms import AccountForm, UserForm
 from django.http import HttpResponseNotFound
-
-
-
-
-
-
-
-
-def SingleSlug(request, singleSlug):
-    categories = [c.categorySlug for c in TutorialCategory.objects.all()]
-    if singleSlug in categories:
-        matchingSeries = TutorialSeries.objects.filter(tutorialCategory__categorySlug=singleSlug)
-        seriesUrls = {}
-        for m in matchingSeries.all():
-            partOne = Tutorial.objects.filter(tutorialSeries__tutorialSeries=m.tutorialSeries).earliest("tutorialPublished")
-            seriesUrls[m] = partOne.tutorialSlug
-        return render(request, "main/category.html", {"partOnes": seriesUrls})
-
-
-    tutorials = [t.tutorialSlug for t in Tutorial.objects.all()]
-    if singleSlug in tutorials:
-        thisTutorial = Tutorial.objects.get(tutorialSlug=singleSlug)
-        tutorialsFromSeries = Tutorial.objects.filter(tutorialSeries__tutorialSeries=thisTutorial.tutorialSeries).order_by("tutorialPublished")
-        thisTutorialIndex = list(tutorialsFromSeries).index(thisTutorial)
-        return render(request, "main/tutorial.html", {"tutorial": thisTutorial, "tutorialsFromSeries": tutorialsFromSeries, "thisTutorialIndex": thisTutorialIndex})
-
-    return HttpResponseNotFound("<h2>No Page Here</h2>")
 
 
 def Homepage(request):
@@ -43,7 +16,7 @@ def Homepage(request):
                   {"Categories": TutorialCategory.objects.all})
 
 
-def Register(request):
+def RegisterRequest(request):
     if request.method == 'POST':
         form = UserForm(request.POST)
         if form.is_valid():
@@ -57,18 +30,34 @@ def Register(request):
             for msg in form.error_messages:
                 messages.error(request, f"{msg}: {form.error_messages[msg]}")
 
-
-
     form = UserForm()
     return(render(request,
                   'main/register.html',
                   {'form': form}))
 
 
+def AccountRequest(request):
+    # check if user is logged in
+    if request.user.is_authenticated:
+        if request.method == 'POST':
+            form = AccountForm(request.POST, instance=request.user)
+            if form.is_valid():
+                form.save()
+                messages.success(request, "Account updated successfully")
+                return redirect('main:homepage')
+
+        form = AccountForm()
+        return render(request, 'main/account.html', {'form': form})
+    else:
+        messages.error(request, "You are not logged in")
+        return redirect("main:login")
+
+
 def LogoutRequest(request):
     logout(request)
     messages.info(request, "Logged out successfully!")
     return redirect("main:homepage")
+
 
 def LoginRequest(request):
     if request.method == 'POST':
@@ -90,3 +79,34 @@ def LoginRequest(request):
     return(render(request,
                   'main/login.html',
                   {'form': form}))
+
+
+def SingleSlug(request, singleSlug):
+    if singleSlug == 'login':
+        return redirect('main:login')
+    elif singleSlug == 'register':
+        return redirect('main:register')
+    elif singleSlug == 'logout':
+        return redirect('main:logout')
+    elif singleSlug == 'account':
+        return redirect('main:account')
+    categories = [c.categorySlug for c in TutorialCategory.objects.all()]
+    if singleSlug in categories:
+        matchingSeries = TutorialSeries.objects.filter(
+            tutorialCategory__categorySlug=singleSlug)
+        seriesUrls = {}
+        for m in matchingSeries.all():
+            partOne = Tutorial.objects.filter(
+                tutorialSeries__tutorialSeries=m.tutorialSeries).earliest("tutorialPublished")
+            seriesUrls[m] = partOne.tutorialSlug
+        return render(request, "main/category.html", {"partOnes": seriesUrls})
+
+    tutorials = [t.tutorialSlug for t in Tutorial.objects.all()]
+    if singleSlug in tutorials:
+        thisTutorial = Tutorial.objects.get(tutorialSlug=singleSlug)
+        tutorialsFromSeries = Tutorial.objects.filter(
+            tutorialSeries__tutorialSeries=thisTutorial.tutorialSeries).order_by("tutorialPublished")
+        thisTutorialIndex = list(tutorialsFromSeries).index(thisTutorial)
+        return render(request, "main/tutorial.html", {"tutorial": thisTutorial, "tutorialsFromSeries": tutorialsFromSeries, "thisTutorialIndex": thisTutorialIndex})
+
+    return HttpResponseNotFound("<h2>No Page Here</h2>")
